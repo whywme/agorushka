@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Новый пароль</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#F5F5F7] flex items-center justify-center h-screen font-sans">
+    <div class="bg-white p-10 rounded-3xl shadow-xl max-w-sm w-full text-center">
+        <h2 class="text-2xl font-bold mb-6 text-gray-900">Смена пароля</h2>
+
+        {% if error %}
+            <div class="bg-red-50 text-red-500 p-3 rounded-xl mb-4 text-sm">{{ error }}</div>
+        {% endif %}
+
+        <form action="/reset-password" method="POST" class="space-y-4">
+            <input type="hidden" name="email" value="{{ email }}">
+
+            <div class="text-left">
+                <label class="text-xs text-gray-400 ml-1">Код из письма</label>
+                <input type="text" name="code" placeholder="0000" maxlength="4" required
+                       class="w-full text-center tracking-[0.5em] font-bold text-xl px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <div class="text-left">
+                <label class="text-xs text-gray-400 ml-1">Новый пароль</label>
+                <input type="password" name="new_password" placeholder="••••••••" required
+                       class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <button type="submit" class="w-full bg-black text-white py-3 rounded-xl font-bold hover:bg-gray-800 transition shadow-lg">
+                Сохранить
+            </button>
+        </form>
+    </div>
+</body>
+</html>

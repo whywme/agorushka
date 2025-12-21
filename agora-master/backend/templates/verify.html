@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Подтверждение почты</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen font-sans">
+    <div class="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full text-center">
+        <div class="mb-4 flex justify-center">
+            <div class="bg-blue-100 p-3 rounded-full text-blue-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+            </div>
+        </div>
+        <h2 class="text-2xl font-bold mb-2 text-gray-800">Проверьте почту</h2>
+        <p class="text-gray-500 mb-6 text-sm">Мы отправили код подтверждения на <br><span class="font-bold text-gray-700">{{ email }}</span></p>
+
+        {% if error %}
+        <div class="bg-red-50 text-red-500 p-2 rounded mb-4 text-sm font-medium border border-red-100">{{ error }}</div>
+        {% endif %}
+
+        <form action="/verify" method="POST" class="space-y-4">
+            <input type="hidden" name="email" value="{{ email }}">
+
+            <input type="text" name="code" placeholder="0000" maxlength="4" required
+                   class="w-full text-center text-4xl tracking-[0.5em] py-3 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-gray-700">
+
+            <button type="submit" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200">
+                Подтвердить аккаунт
+            </button>
+        </form>
+    </div>
+</body>
+</html>

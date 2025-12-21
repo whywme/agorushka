@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Восстановление пароля</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#F5F5F7] flex items-center justify-center h-screen font-sans">
+    <div class="bg-white p-10 rounded-3xl shadow-xl max-w-sm w-full text-center">
+        <h2 class="text-2xl font-bold mb-2 text-gray-900">Забыли пароль?</h2>
+        <p class="text-gray-500 mb-8 text-sm">Введите email, чтобы получить код сброса.</p>
+
+        {% if error %}
+            <div class="bg-red-50 text-red-500 p-3 rounded-xl mb-4 text-sm">{{ error }}</div>
+        {% endif %}
+
+        <form action="/forgot-password" method="POST" class="space-y-4">
+            <input type="email" name="email" placeholder="Ваш Email" required
+                   class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+
+            <button type="submit" class="w-full bg-[#007EC6] text-white py-3 rounded-xl font-bold hover:bg-blue-600 transition shadow-lg shadow-blue-200">
+                Отправить код
+            </button>
+        </form>
+
+        <a href="/" class="block mt-6 text-sm text-gray-400 hover:text-gray-600 transition">Вернуться назад</a>
+    </div>
+</body>
+</html>
