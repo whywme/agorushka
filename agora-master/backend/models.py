@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean, DateTime
 from sqlalchemy.orm import relationship
-from database import Base
+from backend.database import Base
 from datetime import datetime
 
 
@@ -55,8 +55,6 @@ class MaterialFile(Base):
     filename = Column(String)
     file_path = Column(String)
     file_size = Column(String)
-
-    # ВОТ ЭТОЙ СТРОКИ У ТЕБЯ НЕ ХВАТАЛО 👇
     material = relationship("Material", back_populates="files")
 
 

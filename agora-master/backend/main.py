@@ -17,36 +17,32 @@ import PyPDF2
 import docx
 from dotenv import load_dotenv
 
-load_dotenv() # Загружаем переменные
+load_dotenv()
 
-# Импорт твоих файлов
-from database import get_db, engine
-import models
+from backend.database import get_db, engine
+from backend import models
 
-# 1. Создаем таблицы
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# 2. Настройки папок
 if not os.path.exists("uploads"):
     os.makedirs("uploads")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/static", StaticFiles(directory="uploads"), name="static")
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="/app/backend/templates")
 
-# ==========================================
-# 📧 НАСТРОЙКИ ПОЧТЫ
-# ==========================================
+# почта
 conf = ConnectionConfig(
     MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
     MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
     MAIL_FROM=os.getenv("MAIL_FROM"),
-    MAIL_PORT=int(os.getenv("MAIL_PORT", 465)),  # Порт должен быть числом
+    MAIL_PORT=int(os.getenv("MAIL_PORT", 587)),  # Порт должен быть числом
     MAIL_SERVER=os.getenv("MAIL_SERVER"),
-    MAIL_STARTTLS=False,
-    MAIL_SSL_TLS=True,
+    MAIL_FROM_NAME=os.getenv("MAIL_FROM_NAME", "Agora"),
+    MAIL_STARTTLS=True,
+    MAIL_SSL_TLS=False,
     USE_CREDENTIALS=True,
     VALIDATE_CERTS=True
 )
@@ -67,9 +63,7 @@ html_email_template = """
 """
 
 
-# ==========================================
-# 🔐 ПАРОЛИ И БЕЗОПАСНОСТЬ
-# ==========================================
+# пароли
 def get_password_hash(password: str) -> str:
     pwd_bytes = password.encode('utf-8')
     salt = bcrypt.gensalt()
@@ -105,9 +99,7 @@ async def send_reset_email(email: str, code: str):
     await fm.send_message(message)
 
 
-# ==========================================
-# 🚦 МАРШРУТЫ (ROUTES)
-# ==========================================
+# маршруты
 
 @app.get("/")
 def read_root(request: Request):
@@ -176,7 +168,7 @@ def login_user(request: Request, email: str = Form(...), password: str = Form(..
     return RedirectResponse(url=f"/dashboard?email={email}", status_code=303)
 
 
-# 4. ЛИЧНЫЙ КАБИНЕТ (ОБНОВЛЕН ДЛЯ МУЛЬТИ-ФАЙЛОВ)
+# 4. ЛИЧНЫЙ КАБИНЕТ
 @app.get("/dashboard")
 def dashboard_page(request: Request, email: str = None, db: Session = Depends(get_db)):
     if email:
@@ -200,9 +192,7 @@ def dashboard_page(request: Request, email: str = None, db: Session = Depends(ge
     rating_val = 1.0 + (total_likes * 0.1)
     if rating_val > 5.0: rating_val = 5.0
 
-    # 1. Готовим список задач для отправки на фронтенд
     tasks_list = []
-    # Сортируем: сначала невыполненные, потом срочные
     sorted_tasks = sorted(user.tasks, key=lambda x: (x.is_done, not x.is_urgent))
 
     for t in sorted_tasks:
@@ -212,7 +202,6 @@ def dashboard_page(request: Request, email: str = None, db: Session = Depends(ge
             "subject": t.subject,
             "urgent": t.is_urgent,
             "done": t.is_done,
-            # Превращаем дату в строку "2025-12-20 14:00"
             "deadline": t.deadline.strftime("%Y-%m-%d %H:%M") if t.deadline else None
         })
 
@@ -230,15 +219,12 @@ def dashboard_page(request: Request, email: str = None, db: Session = Depends(ge
 
     materials_db = db.query(models.Material).all()
 
-    # Личные саммари
     my_ai_entries = db.query(models.UserAI).filter(models.UserAI.user_id == user.id).all()
     ai_map = {entry.material_id: entry.summary_text for entry in my_ai_entries}
 
-    # Личные лайки
     my_likes = db.query(models.UserLike.material_id).filter(models.UserLike.user_id == user.id).all()
     my_likes_ids = [like[0] for like in my_likes]
 
-    #Личное ИЗБРАННОЕ
     my_favs = db.query(models.UserFavorite.material_id).filter(models.UserFavorite.user_id == user.id).all()
     my_favs_ids = [fav[0] for fav in my_favs]  # Список ID избранных файлов
 
@@ -247,7 +233,6 @@ def dashboard_page(request: Request, email: str = None, db: Session = Depends(ge
         author_name = m.author.username if m.author else "Неизвестный"
         personal_ai = ai_map.get(m.id)
 
-        # === СОБИРАЕМ СПИСОК ФАЙЛОВ ===
         files_list = []
         for f in m.files:
             files_list.append({
@@ -268,7 +253,7 @@ def dashboard_page(request: Request, email: str = None, db: Session = Depends(ge
             "desc": m.description,
             "isPrivate": m.is_private,
             "downloads": m.downloads_count, "views": m.views_count,
-            "files": files_list  # <--- ОТПРАВЛЯЕМ СПИСОК В JS
+            "files": files_list
         })
 
     return templates.TemplateResponse("dashboard.html", {
@@ -278,7 +263,7 @@ def dashboard_page(request: Request, email: str = None, db: Session = Depends(ge
     })
 
 
-# 5. ЗАГРУЗКА МАТЕРИАЛОВ (МУЛЬТИ-ФАЙЛЫ)
+# 5. ЗАГРУЗКА МАТЕРИАЛОВ
 @app.post("/upload")
 def upload_material(
         title: str = Form(...),
@@ -288,23 +273,19 @@ def upload_material(
         description: str = Form(""),
         is_private: str = Form("false"),
         email: str = Form(...),
-        files: List[UploadFile] = File(...),  # <--- СПИСОК
+        files: List[UploadFile] = File(...),
         db: Session = Depends(get_db)
 ):
-    # ВСТАВЛЯЕМ СЮДА (Сразу после начала функции):
-    # ---------------------------------------------------
-    # 1. Убираем пробелы по краям
+
     title = title.strip()
     category = category.strip()
 
-    # 2. Делаем первую букву названия заглавной
     if len(title) > 0:
         title = title[0].upper() + title[1:]
 
-    # 3. Предметы часто пишут с большой буквы (Физика, Матан)
     if len(category) > 0:
         category = category[0].upper() + category[1:]
-    # ---------------------------------------------------
+
 
     author = db.query(models.User).filter(models.User.email == email).first()
     if not author: author = db.query(models.User).first()
@@ -439,7 +420,7 @@ def get_public_profile(user_id: int, db: Session = Depends(get_db)):
     }
 
 
-# 9. СКАЧИВАНИЕ ФАЙЛА (ИЗ ТАБЛИЦЫ FILES)
+# 9. СКАЧИВАНИЕ ФАЙЛА
 @app.get("/download/{file_id}")
 def download_file(file_id: int, db: Session = Depends(get_db)):
     file_record = db.query(models.MaterialFile).filter(models.MaterialFile.id == file_id).first()
@@ -496,7 +477,6 @@ def delete_material_action(material_id: int = Form(...), email: str = Form(...),
     if not material or not user or material.author_id != user.id:
         return {"status": "error", "message": "Нет прав"}
 
-    # Удаляем файлы с диска
     for f in material.files:
         try:
             if os.path.exists(f"uploads/{f.file_path}"): os.remove(f"uploads/{f.file_path}")
@@ -516,11 +496,10 @@ def edit_material_action(
         material_id: int = Form(...), title: str = Form(...), category: str = Form(...),
         course: int = Form(...), material_type: str = Form(...), description: str = Form(""),
         is_private: str = Form("false"), email: str = Form(...),
-        files: List[UploadFile] = File(None),  # Новые файлы
+        files: List[UploadFile] = File(None),
         db: Session = Depends(get_db)
 ):
-    # ВСТАВЛЯЕМ СЮДА:
-    # ---------------------------------------------------
+
     title = title.strip()
     category = category.strip()
 
@@ -529,7 +508,6 @@ def edit_material_action(
 
     if len(category) > 0:
         category = category[0].upper() + category[1:]
-    # ---------------------------------------------------
     user = db.query(models.User).filter(models.User.email == email).first()
     material = db.query(models.Material).filter(models.Material.id == material_id).first()
     if not material or not user or material.author_id != user.id:
@@ -542,14 +520,11 @@ def edit_material_action(
     material.description = description
     material.is_private = (is_private == "true")
 
-    # Если загрузили новые файлы - старые удаляем
     if files and len(files) > 0 and files[0].filename:
-        # Удаляем старые
         for old_f in material.files:
             if os.path.exists(f"uploads/{old_f.file_path}"): os.remove(f"uploads/{old_f.file_path}")
         db.query(models.MaterialFile).filter(models.MaterialFile.material_id == material_id).delete()
 
-        # Добавляем новые
         for file in files:
             unique_filename = f"{uuid.uuid4()}_{file.filename}"
             file.file.seek(0, 2)
@@ -570,9 +545,7 @@ def edit_material_action(
     return {"status": "ok"}
 
 
-# ==========================================
-# 🤖 ЛОГИКА GIGACHAT (AI)
-# ==========================================
+# гигачат
 
 def extract_text_from_file(file_path: str) -> str:
     text = ""
@@ -604,7 +577,6 @@ def analyze_material_ai(
                                                  models.UserAI.material_id == material.id).first()
     if existing_ai: return {"status": "ok", "ai": existing_ai.summary_text}
 
-    # Берем первый файл для анализа
     if not material.files: return {"error": "В материале нет файлов"}
     text_content = extract_text_from_file(material.files[0].file_path)
 
@@ -662,16 +634,13 @@ def update_fav_cats(email: str = Form(...), categories: str = Form(...), db: Ses
     return {"status": "ok"}
 
 
-# ==========================================
-# ✅ ЛОГИКА ЗАДАЧ (TASKS)
-# ==========================================
-
+# задачи
 @app.post("/api/task/add")
 def add_task(
         text: str = Form(...),
         subject: str = Form(""),
-        date: str = Form(""),  # Приходит как "2025-12-20"
-        time: str = Form(""),  # Приходит как "14:00"
+        date: str = Form(""),
+        time: str = Form(""),
         is_urgent: str = Form("false"),
         email: str = Form(...),
         db: Session = Depends(get_db)
@@ -679,16 +648,13 @@ def add_task(
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user: return {"status": "error", "message": "Пользователь не найден"}
 
-    # Собираем дату и время в один объект
     deadline_dt = None
     if date:
         try:
             if time:
-                # Если есть и дата и время: "2025-12-20 14:00"
                 dt_str = f"{date} {time}"
                 deadline_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
             else:
-                # Если только дата: "2025-12-20"
                 deadline_dt = datetime.strptime(date, "%Y-%m-%d")
         except Exception as e:
             print(f"Ошибка даты: {e}")
@@ -714,7 +680,6 @@ def toggle_task_done(
     user = db.query(models.User).filter(models.User.email == email).first()
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
 
-    # Проверяем, что задача принадлежит именно этому юзеру
     if not user or not task or task.user_id != user.id:
         return {"status": "error"}
 
@@ -739,7 +704,6 @@ def delete_task(
     db.commit()
     return {"status": "ok"}
 
-# ... (твои функции add_task, toggle_task_done, delete_task) ...
 
 @app.post("/api/task/edit")
 def edit_task(
@@ -758,26 +722,20 @@ def edit_task(
     if not user or not task or task.user_id != user.id:
         return {"status": "error", "message": "Задача не найдена"}
 
-    # Обновляем основные поля
     task.text = text
     task.subject = subject
     task.is_urgent = (is_urgent == "true")
 
-    # Логика даты:
-    # Если прислали дату - пытаемся её записать.
     if date and date != "undefined" and date != "null":
         try:
             if time and time != "undefined":
-                # Дата + Время
                 dt_str = f"{date} {time}"
                 task.deadline = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
             else:
-                # Только Дата (время ставим 00:00 автоматом или оставляем дату)
                 task.deadline = datetime.strptime(date, "%Y-%m-%d")
         except Exception as e:
             print(f"Ошибка сохранения даты: {e}")
     else:
-        # Если дату очистили намеренно — удаляем дедлайн
         task.deadline = None
 
     db.commit()
